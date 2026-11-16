@@ -1,13 +1,13 @@
 // Fiche d'un membre : grades, présences, cours, coordonnées chiffrées, zone RGPD.
 import { sb, unwrap } from '../supabaseClient.js';
 import { h, clear, append, button, field, selectEl, formModal, confirmDialog, toast, showError, badge, emptyState } from '../dom.js';
-import { isAdmin } from '../auth.js';
+import { isAdmin, state } from '../auth.js';
 import { go } from '../router.js';
-import { fmtShort, todayIso, downloadJson, fullName, errMsg } from '../util.js';
+import { fmtShort, todayIso, downloadJson, fullName, errMsg, ROLE_LABEL } from '../util.js';
 import { beltDot, memberForm } from './members.js';
 
 export async function renderMember(root, { id }) {
-  const m = await unwrap(sb.from('members').select('id,first_name,last_name,birth_year,active,left_at,anonymized_at').eq('id', id).maybeSingle());
+  const m = await unwrap(sb.from('members').select('id,first_name,last_name,birth_year,active,left_at,anonymized_at,profile_id').eq('id', id).maybeSingle());
   if (!m) { root.appendChild(h('div', { class: 'card' }, emptyState('Membre introuvable.'), h('a', { class: 'btn', href: '#/membres' }, 'Retour aux membres'))); return; }
   const [grades, belts, att, courses] = await Promise.all([
     unwrap(sb.from('member_grades').select('id,awarded_on,note,belt:belt_levels(name,color)').eq('member_id', id).order('awarded_on', { ascending: false }).order('created_at', { ascending: false })),
@@ -16,6 +16,9 @@ export async function renderMember(root, { id }) {
     unwrap(sb.from('course_members').select('course:courses(id,name)').eq('member_id', id)),
   ]);
   const reload = () => { clear(root); return renderMember(root, { id }); };
+  // Compte lié (admin ou enseignant qui pratique aussi)
+  const linked = m.profile_id ? await unwrap(sb.from('profiles').select('id,full_name,role').eq('id', m.profile_id).maybeSingle()) : null;
+  const isSelf = !!m.profile_id && m.profile_id === state.profile.id;
   const anonymized = !!m.anonymized_at;
 
   // ----- Identité -----
@@ -28,8 +31,34 @@ export async function renderMember(root, { id }) {
       h('dt', {}, 'Année de naissance'), h('dd', {}, m.birth_year || '—'),
       h('dt', {}, 'Grade actuel'), h('dd', {}, grades.length ? [beltDot(grades[0].belt), ' ', grades[0].belt.name] : 'Aucun'),
       m.left_at ? [h('dt', {}, 'Départ'), h('dd', {}, fmtShort(m.left_at))] : null,
-      h('dt', {}, 'Cours'), h('dd', {}, courses.length ? courses.map((c) => c.course && c.course.name).filter(Boolean).join(', ') : 'Aucun')),
-    anonymized ? null : button('Modifier', () => memberForm(m, reload)));
+      h('dt', {}, 'Cours'), h('dd', {}, courses.length ? courses.map((c) => c.course && c.course.name).filter(Boolean).join(', ') : 'Aucun'),
+      h('dt', {}, 'Compte lié'), h('dd', {}, linked ? [linked.full_name || '(sans nom)', ' ', badge(ROLE_LABEL[linked.role] || linked.role, 'badge-ok')] : 'Aucun')),
+    anonymized ? null : h('div', { class: 'btn-row' },
+      button('Modifier', () => memberForm(m, reload)),
+      isAdmin() ? button(m.profile_id ? 'Changer le compte lié' : 'Lier à un compte', linkAccount) : null));
+
+  async function linkAccount() {
+    let profiles, taken;
+    try {
+      [profiles, taken] = await Promise.all([
+        unwrap(sb.rpc('list_users')),
+        unwrap(sb.from('members').select('profile_id').not('profile_id', 'is', null)),
+      ]);
+    } catch (e) { showError(e); return; }
+    const used = new Set(taken.map((t) => t.profile_id).filter((pid) => pid !== m.profile_id));
+    const opts = [['', '— Aucun compte —']].concat(profiles.filter((p) => !used.has(p.id))
+      .map((p) => [p.id, `${p.full_name || '(sans nom)'} – ${p.email} – ${ROLE_LABEL[p.role] || p.role}`]));
+    const sel = selectEl(opts, m.profile_id || '');
+    formModal({
+      title: 'Lier la fiche à un compte',
+      body: [h('p', { class: 'muted' }, 'Fusionne un compte avec cette fiche : la personne retrouve son historique (grades, présences). Utile quand un membre créé sans email se connecte plus tard, ou pour un enseignant qui pratique aussi. La liaison ne donne aucun droit : le rôle se gère dans Administration > Comptes.'), field('Compte', sel)],
+      onSubmit: async () => {
+        await unwrap(sb.from('members').update({ profile_id: sel.value || null }).eq('id', id));
+        toast('Liaison enregistrée.', 'success');
+        reload();
+      },
+    });
+  }
 
   // ----- Coordonnées (chargées uniquement à la demande, jamais mises en cache) -----
   const contactBox = h('div', { class: 'card' });
@@ -78,7 +107,8 @@ export async function renderMember(root, { id }) {
       h('span', {}, beltDot(g.belt), ' ', h('strong', {}, g.belt.name), ' – ', fmtShort(g.awarded_on), g.note ? h('span', { class: 'muted' }, ' · ' + g.note) : null),
       isAdmin() ? button('Supprimer', () => deleteGrade(g), 'btn-sm btn-danger-outline', { 'aria-label': `Supprimer le grade ${g.belt.name}` }) : null))));
   }
-  if (!anonymized) gradeCard.append(button('Ajouter un grade', addGrade, 'btn-primary'));
+  if (!anonymized && isSelf && !isAdmin()) gradeCard.append(h('p', { class: 'muted' }, 'Vous ne pouvez pas vous décerner un grade : demandez à un administrateur.'));
+  else if (!anonymized) gradeCard.append(button('Ajouter un grade', addGrade, 'btn-primary'));
   function addGrade() {
     if (!belts.length) { toast('Aucun grade défini (voir Administration).', 'error'); return; }
     const sel = selectEl(belts.map((b) => [b.id, b.name]), belts[0].id, { required: true });

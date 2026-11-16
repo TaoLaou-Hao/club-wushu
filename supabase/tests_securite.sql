@@ -158,3 +158,25 @@ select apply_retention(3,365);
 reset role;
 \echo 'F2 truncate audit as authenticated (expect ERROR)'
 set role authenticated; truncate audit_log; reset role;
+\echo '== T30 compte lié'
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000e'); set role authenticated;
+\echo 'teacher links own fiche at insert (expect profile_id null)'
+insert into members (id,first_name,last_name,profile_id) values ('20000000-0000-0000-0000-000000000009','Moi','Prof','00000000-0000-0000-0000-00000000000e');
+select profile_id is null as not_linked from members where id='20000000-0000-0000-0000-000000000009';
+reset role;
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a'); set role authenticated;
+\echo 'admin links fiche (ok)'
+update members set profile_id='00000000-0000-0000-0000-00000000000e' where id='20000000-0000-0000-0000-000000000009';
+select profile_id is not null as linked from members where id='20000000-0000-0000-0000-000000000009';
+\echo 'admin self fiche + self grade (ok)'
+insert into members (id,first_name,last_name,profile_id) values ('20000000-0000-0000-0000-00000000000a','Tao','Admin','00000000-0000-0000-0000-00000000000a');
+insert into member_grades (member_id, belt_level_id) select '20000000-0000-0000-0000-00000000000a', id from belt_levels where name='Noire';
+select count(*) admin_grades from member_grades where member_id='20000000-0000-0000-0000-00000000000a';
+reset role;
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000e'); set role authenticated;
+\echo 'teacher self-grade (expect ERROR)'
+insert into member_grades (member_id, belt_level_id) select '20000000-0000-0000-0000-000000000009', id from belt_levels where name='Noire';
+\echo 'teacher unlinks/relinks (expect unchanged)'
+update members set profile_id=null where id='20000000-0000-0000-0000-000000000009';
+select profile_id is not null as still_linked from members where id='20000000-0000-0000-0000-000000000009';
+reset role;

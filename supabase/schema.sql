@@ -105,7 +105,9 @@ create table public.members (
   anonymized_at  timestamptz,
   created_at     timestamptz not null default now(),
   updated_at     timestamptz not null default now(),
-  created_by     uuid references public.profiles(id) on delete set null
+  created_by     uuid references public.profiles(id) on delete set null,
+  -- Compte lié (un admin ou un enseignant peut aussi être pratiquant). Liaison par un admin uniquement.
+  profile_id     uuid unique references public.profiles(id) on delete set null
 );
 
 -- Coordonnées chiffrées : schéma privé, AUCUN accès direct depuis l'API.
@@ -276,7 +278,8 @@ returns boolean language sql stable security definer set search_path = '' as $$
                join public.sessions s on s.id = a.session_id
                join public.course_instructors ci on ci.course_id = s.course_id
                where a.member_id = p_member_id and ci.profile_id = auth.uid())
-    or exists (select 1 from public.members m where m.id = p_member_id and m.created_by = auth.uid())))
+    or exists (select 1 from public.members m where m.id = p_member_id
+               and (m.created_by = auth.uid() or m.profile_id = auth.uid()))))
 $$;
 
 create or replace function private.log(p_action text, p_table text, p_record text, p_details jsonb default null)
@@ -333,7 +336,9 @@ begin
     new.created_at := now();
     new.anonymized_at := null;
     if not new.active then new.left_at := current_date; else new.left_at := null; end if;
+    if current_user in ('authenticated','anon') and not public.is_admin() then new.profile_id := null; end if;
   else
+    if current_user in ('authenticated','anon') and not public.is_admin() then new.profile_id := old.profile_id; end if;
     new.created_by := old.created_by;
     new.created_at := old.created_at;
     if current_user in ('authenticated','anon') then
@@ -490,7 +495,10 @@ create policy members_delete on public.members for delete to authenticated using
 
 -- grades
 create policy grades_select on public.member_grades for select to authenticated using (public.is_staff());
-create policy grades_insert on public.member_grades for insert to authenticated with check (public.can_access_member(member_id));
+-- Un enseignant ne peut pas se décerner un grade à lui-même (seul un admin le peut)
+create policy grades_insert on public.member_grades for insert to authenticated
+  with check (public.can_access_member(member_id) and (public.is_admin() or not exists (
+    select 1 from public.members m where m.id = member_id and m.profile_id = auth.uid())));
 create policy grades_update on public.member_grades for update to authenticated using (public.is_admin()) with check (public.is_admin());
 create policy grades_delete on public.member_grades for delete to authenticated using (public.is_admin());
 
@@ -750,7 +758,7 @@ begin
   update public.members
      set first_name = 'Anonyme', last_name = upper(substr(md5(id::text), 1, 6)),
          birth_year = null, active = false, left_at = coalesce(left_at, current_date),
-         anonymized_at = now()
+         anonymized_at = now(), profile_id = null
    where id = p_member_id;
   if not found then raise exception 'Membre introuvable'; end if;
   delete from private.member_contacts where member_id = p_member_id;

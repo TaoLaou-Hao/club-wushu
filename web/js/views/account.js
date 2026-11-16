@@ -1,6 +1,8 @@
 // Mon compte : nom, mot de passe, rôle, déconnexion.
 import { sb, unwrap } from '../supabaseClient.js';
-import { h, field, toast, showError } from '../dom.js';
+import { h, field, toast, showError, button, badge } from '../dom.js';
+import { go } from '../router.js';
+import { beltDot } from './members.js';
 import * as auth from '../auth.js';
 import { ROLE_LABEL } from '../util.js';
 
@@ -10,6 +12,34 @@ export async function renderAccount(root) {
   const p1 = h('input', { type: 'password', required: true, minlength: 10, maxlength: 200, autocomplete: 'new-password' });
   const p2 = h('input', { type: 'password', required: true, minlength: 10, maxlength: 200, autocomplete: 'new-password' });
   const pwMsg = h('p', { class: 'form-error', role: 'alert', hidden: true });
+
+  // Fiche pratiquant liée au compte (grades, présences)
+  const practiceCard = h('div', { class: 'card' }, h('h2', {}, 'Ma fiche pratiquant'));
+  try {
+    const mine = await unwrap(sb.from('members').select('id,first_name,last_name').eq('profile_id', p.id).maybeSingle());
+    if (mine) {
+      const g = await unwrap(sb.from('member_grades').select('awarded_on,belt:belt_levels(name,color)').eq('member_id', mine.id)
+        .order('awarded_on', { ascending: false }).limit(1));
+      practiceCard.append(
+        h('p', {}, 'Grade actuel : ', g.length ? [beltDot(g[0].belt), ' ', h('strong', {}, g[0].belt.name)] : 'aucun'),
+        h('a', { class: 'btn', href: `#/membre/${mine.id}` }, 'Voir ma fiche (grades, présences)'));
+    } else if (auth.isAdmin()) {
+      practiceCard.append(
+        h('p', { class: 'muted' }, 'Vous pratiquez aussi ? Créez votre fiche pour suivre vos grades et présences.'),
+        button('Créer ma fiche pratiquant', async () => {
+          const parts = (p.full_name || '').trim().split(/\s+/);
+          const first = parts.shift() || 'Prénom';
+          const last = parts.join(' ') || 'Nom';
+          try {
+            const row = await unwrap(sb.from('members').insert({ first_name: first.slice(0, 60), last_name: last.slice(0, 60), profile_id: p.id }).select('id').single());
+            toast('Fiche créée.', 'success');
+            go(`/membre/${row.id}`);
+          } catch (e) { showError(e); }
+        }, 'btn-primary'));
+    } else {
+      practiceCard.append(h('p', { class: 'muted' }, 'Aucune fiche pratiquant liée. Demandez à un administrateur de lier votre compte à votre fiche membre.'));
+    }
+  } catch (e) { practiceCard.append(h('p', { class: 'muted' }, 'Fiche indisponible.')); }
 
   root.append(
     h('h1', {}, 'Mon compte'),
@@ -29,6 +59,7 @@ export async function renderAccount(root) {
           } catch (err) { showError(err); }
         },
       }, field('Nom complet', name), h('button', { type: 'submit', class: 'btn btn-primary' }, 'Enregistrer le nom'))),
+    practiceCard,
     h('div', { class: 'card' },
       h('h2', {}, 'Changer le mot de passe'),
       h('form', {
