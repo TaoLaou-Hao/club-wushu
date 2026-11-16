@@ -7,13 +7,14 @@ import { fmtShort, todayIso, downloadJson, fullName, errMsg, ROLE_LABEL } from '
 import { beltDot, memberForm } from './members.js';
 
 export async function renderMember(root, { id }) {
-  const m = await unwrap(sb.from('members').select('id,first_name,last_name,birth_year,active,left_at,anonymized_at,profile_id').eq('id', id).maybeSingle());
+  const m = await unwrap(sb.from('members').select('id,first_name,last_name,birth_year,active,left_at,anonymized_at,profile_id,is_instructor').eq('id', id).maybeSingle());
   if (!m) { root.appendChild(h('div', { class: 'card' }, emptyState('Membre introuvable.'), h('a', { class: 'btn', href: '#/membres' }, 'Retour aux membres'))); return; }
-  const [grades, belts, att, courses] = await Promise.all([
+  const [grades, belts, att, courses, teaches] = await Promise.all([
     unwrap(sb.from('member_grades').select('id,awarded_on,note,belt:belt_levels(name,color)').eq('member_id', id).order('awarded_on', { ascending: false }).order('created_at', { ascending: false })),
     unwrap(sb.from('belt_levels').select('id,name,rank,color').order('rank')),
     unwrap(sb.from('attendance').select('present,session:sessions(id,date,status,course:courses(name))').eq('member_id', id)),
     unwrap(sb.from('course_members').select('course:courses(id,name)').eq('member_id', id)),
+    m.is_instructor ? unwrap(sb.from('course_instructors').select('course:courses(id,name)').eq('member_id', id)) : Promise.resolve([]),
   ]);
   const reload = () => { clear(root); return renderMember(root, { id }); };
   // Compte lié (admin ou enseignant qui pratique aussi)
@@ -26,16 +27,35 @@ export async function renderMember(root, { id }) {
     h('p', {}, h('a', { href: '#/membres' }, '‹ Membres')),
     h('div', { class: 'row-between' },
       h('h1', {}, anonymized ? `${m.first_name} ${m.last_name}` : fullName(m)),
-      h('div', {}, anonymized ? badge('Anonymisé', 'badge-off') : badge(m.active ? 'Actif' : 'Inactif', m.active ? 'badge-ok' : 'badge-off'))),
+      h('div', {}, anonymized ? badge('Anonymisé', 'badge-off') : [badge(m.active ? 'Actif' : 'Inactif', m.active ? 'badge-ok' : 'badge-off'), m.is_instructor ? [' ', badge('Enseignant', 'badge-ok')] : null])),
     h('dl', { class: 'kv' },
       h('dt', {}, 'Année de naissance'), h('dd', {}, m.birth_year || '—'),
       h('dt', {}, 'Grade actuel'), h('dd', {}, grades.length ? [beltDot(grades[0].belt), ' ', grades[0].belt.name] : 'Aucun'),
       m.left_at ? [h('dt', {}, 'Départ'), h('dd', {}, fmtShort(m.left_at))] : null,
       h('dt', {}, 'Cours'), h('dd', {}, courses.length ? courses.map((c) => c.course && c.course.name).filter(Boolean).join(', ') : 'Aucun'),
+      m.is_instructor ? [h('dt', {}, 'Enseigne'), h('dd', {}, teaches.length ? teaches.map((c) => c.course && c.course.name).filter(Boolean).join(', ') : 'Aucun cours pour le moment')] : null,
       h('dt', {}, 'Compte lié'), h('dd', {}, linked ? [linked.full_name || '(sans nom)', ' ', badge(ROLE_LABEL[linked.role] || linked.role, 'badge-ok')] : 'Aucun')),
     anonymized ? null : h('div', { class: 'btn-row' },
       button('Modifier', () => memberForm(m, reload)),
       isAdmin() ? button(m.profile_id ? 'Changer le compte lié' : 'Lier à un compte', linkAccount) : null));
+
+  // ----- Statut d'enseignant (admin) -----
+  const instrCard = isAdmin() && !anonymized ? h('div', { class: 'card' },
+    h('h2', {}, 'Enseignant'),
+    h('label', { class: 'check' },
+      h('input', {
+        type: 'checkbox', checked: !!m.is_instructor,
+        onchange: async (e) => {
+          const cb = e.target; const want = cb.checked;
+          cb.disabled = true;
+          try {
+            await unwrap(sb.from('members').update({ is_instructor: want }).eq('id', id));
+            toast(want ? 'Fiche marquée comme enseignant.' : 'Statut d’enseignant retiré.', 'success');
+            reload();
+          } catch (err) { cb.checked = !want; cb.disabled = false; showError(err); }
+        },
+      }), ' Enseignant (peut être habilité à donner des cours)'),
+    h('p', { class: 'muted small' }, 'Un enseignant sans compte apparaît dans le planning (habilitations du cours, intervenant des séances) et un administrateur coche les présences à sa place. En liant la fiche à un compte (« Lier à un compte »), la personne accède à ses cours dès que son compte a le rôle enseignant. Retirer le statut supprime ses habilitations sur les cours.')) : null;
 
   async function linkAccount() {
     let profiles, taken;
@@ -144,7 +164,7 @@ export async function renderMember(root, { id }) {
       badge(a.present ? 'Présent' : 'Absent', a.present ? 'badge-ok' : 'badge-off')))) : null,
     valid.length > 50 ? h('p', { class: 'muted small' }, '50 dernières séances affichées.') : null);
 
-  root.append(infoCard, contactBox, gradeCard, attCard);
+  root.append(infoCard, instrCard, contactBox, gradeCard, attCard);
 
   // ----- Zone RGPD (admin) -----
   if (isAdmin()) {

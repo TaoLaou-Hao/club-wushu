@@ -1,14 +1,15 @@
 // Cours : liste, création / édition (admin), habilités, inscrits.
 import { sb, unwrap } from '../supabaseClient.js';
 import { h, clear, button, field, selectEl, formModal, modal, confirmDialog, toast, showError, badge, emptyState } from '../dom.js';
-import { state, isAdmin } from '../auth.js';
+import { isAdmin } from '../auth.js';
 import { WEEKDAYS, hm, todayIso, fullName, byMemberName, norm } from '../util.js';
 
 export async function renderCourses(root) {
-  const [courses, instr, profiles] = await Promise.all([
+  const [courses, instr, teachers, myMember] = await Promise.all([
     unwrap(sb.from('courses').select('id,name,description,level,location,weekday,start_time,end_time,start_date,end_date,active').order('weekday').order('start_time')),
-    unwrap(sb.from('course_instructors').select('course_id,profile_id,profile:profiles(full_name)')),
-    unwrap(sb.from('profiles').select('id,full_name,role').in('role', ['teacher', 'admin']).order('full_name')),
+    unwrap(sb.from('course_instructors').select('course_id,member_id,member:members(id,first_name,last_name)')),
+    unwrap(sb.from('members').select('id,first_name,last_name,profile_id').eq('is_instructor', true).eq('active', true).is('anonymized_at', null).order('last_name').order('first_name')),
+    sb.rpc('my_member_id').then(({ data, error }) => { if (error) throw error; return data || null; }),
   ]);
   const instrBy = new Map();
   for (const r of instr) {
@@ -18,13 +19,13 @@ export async function renderCourses(root) {
   const reload = () => { clear(root); return renderCourses(root); };
 
   root.append(h('div', { class: 'row-between' }, h('h1', {}, 'Cours'),
-    isAdmin() ? button('Nouveau cours', () => courseForm(null, [], profiles, reload), 'btn-primary') : null));
+    isAdmin() ? button('Nouveau cours', () => courseForm(null, [], teachers, reload), 'btn-primary') : null));
   if (!courses.length) root.append(emptyState('Aucun cours pour le moment.'));
 
   const grid = h('div', { class: 'cards' });
   for (const c of courses) {
     const list = instrBy.get(c.id) || [];
-    const canManage = isAdmin() || list.some((r) => r.profile_id === state.user.id);
+    const canManage = isAdmin() || (!!myMember && list.some((r) => r.member_id === myMember));
     grid.appendChild(h('article', { class: 'card course' + (c.active ? '' : ' inactive') },
       h('div', { class: 'row-between' }, h('h2', {}, c.name), badge(c.active ? 'Actif' : 'Inactif', c.active ? 'badge-ok' : 'badge-off')),
       h('dl', { class: 'kv' },
@@ -32,11 +33,11 @@ export async function renderCourses(root) {
         h('dt', {}, 'Horaire'), h('dd', {}, `${hm(c.start_time)}–${hm(c.end_time)}`),
         h('dt', {}, 'Lieu'), h('dd', {}, c.location || '—'),
         h('dt', {}, 'Niveau'), h('dd', {}, c.level || '—'),
-        h('dt', {}, 'Habilités'), h('dd', {}, list.length ? list.map((r) => (r.profile && r.profile.full_name) || 'Sans nom').join(', ') : 'Aucun')),
+        h('dt', {}, 'Habilités'), h('dd', {}, list.length ? list.map((r) => (r.member ? fullName(r.member) : 'Sans nom')).join(', ') : 'Aucun')),
       c.description ? h('p', { class: 'muted' }, c.description) : null,
       h('div', { class: 'btn-row' },
         canManage ? button('Inscrits', () => enrolModal(c)) : null,
-        isAdmin() ? button('Modifier', () => courseForm(c, list.map((r) => r.profile_id), profiles, reload)) : null,
+        isAdmin() ? button('Modifier', () => courseForm(c, list.map((r) => r.member_id), teachers, reload)) : null,
         isAdmin() ? button('Supprimer', () => deleteCourse(c, reload), 'btn-danger-outline') : null)));
   }
   root.append(grid);
@@ -51,7 +52,7 @@ async function deleteCourse(c, reload) {
   } catch (e) { showError(e); }
 }
 
-function courseForm(c, currentInstr, profiles, reload) {
+function courseForm(c, currentInstr, teachers, reload) {
   const name = h('input', { type: 'text', required: true, maxlength: 100, value: c ? c.name : '' });
   const desc = h('textarea', { rows: 2, maxlength: 1000 }); desc.value = c && c.description ? c.description : '';
   const level = h('input', { type: 'text', maxlength: 60, value: c && c.level ? c.level : '' });
@@ -63,9 +64,9 @@ function courseForm(c, currentInstr, profiles, reload) {
   const ed = h('input', { type: 'date', value: c && c.end_date ? c.end_date : '' });
   const act = h('input', { type: 'checkbox', checked: c ? c.active : true });
   const chosen = new Set(currentInstr);
-  const boxes = h('div', { class: 'checklist' }, profiles.map((p) => {
+  const boxes = h('div', { class: 'checklist' }, teachers.map((p) => {
     const cb = h('input', { type: 'checkbox', checked: chosen.has(p.id), onchange: () => { cb.checked ? chosen.add(p.id) : chosen.delete(p.id); } });
-    return h('label', { class: 'check' }, cb, ' ', p.full_name || 'Sans nom', p.role === 'admin' ? ' (admin)' : '');
+    return h('label', { class: 'check' }, cb, ' ', fullName(p), p.profile_id ? '' : h('small', { class: 'muted' }, ' (sans compte)'));
   }));
   formModal({
     title: c ? 'Modifier le cours' : 'Nouveau cours', wide: true,
@@ -74,7 +75,7 @@ function courseForm(c, currentInstr, profiles, reload) {
       field('Jour', wd), field('Début', st), field('Fin', en), field('Date de début', sd),
       field('Date de fin (facultative)', ed),
       h('label', { class: 'check' }, act, ' Cours actif'),
-      h('fieldset', { class: 'fieldset' }, h('legend', {}, 'Personnes habilitées à enseigner'), profiles.length ? boxes : h('p', { class: 'muted' }, 'Aucun enseignant.')),
+      h('fieldset', { class: 'fieldset' }, h('legend', {}, 'Personnes habilitées à enseigner'), teachers.length ? boxes : h('p', { class: 'muted' }, 'Aucun enseignant : cochez « Enseignant » sur une fiche membre.')),
     ],
     onSubmit: async () => {
       if (en.value <= st.value) throw new Error('L’heure de fin doit être après l’heure de début.');
@@ -88,9 +89,9 @@ function courseForm(c, currentInstr, profiles, reload) {
       else id = (await unwrap(sb.from('courses').insert(row).select('id').single())).id;
       // Synchronisation des habilités (ajouts / retraits)
       const old = new Set(currentInstr);
-      const add = [...chosen].filter((x) => !old.has(x)).map((profile_id) => ({ course_id: id, profile_id }));
+      const add = [...chosen].filter((x) => !old.has(x)).map((member_id) => ({ course_id: id, member_id }));
       const del = [...old].filter((x) => !chosen.has(x));
-      if (del.length) await unwrap(sb.from('course_instructors').delete().eq('course_id', id).in('profile_id', del));
+      if (del.length) await unwrap(sb.from('course_instructors').delete().eq('course_id', id).in('member_id', del));
       if (add.length) await unwrap(sb.from('course_instructors').insert(add));
       toast('Cours enregistré.', 'success');
       const was = (k) => (k === 'start_time' || k === 'end_time' ? hm(c[k]) : c[k]) ?? '';

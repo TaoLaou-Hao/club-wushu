@@ -16,11 +16,14 @@ export async function renderAccount(root) {
   // Fiche pratiquant liée au compte (grades, présences)
   const practiceCard = h('div', { class: 'card' }, h('h2', {}, 'Ma fiche pratiquant'));
   try {
-    const mine = await unwrap(sb.from('members').select('id,first_name,last_name').eq('profile_id', p.id).maybeSingle());
+    const mine = await unwrap(sb.from('members').select('id,first_name,last_name,is_instructor').eq('profile_id', p.id).maybeSingle());
     if (mine) {
       const g = await unwrap(sb.from('member_grades').select('awarded_on,belt:belt_levels(name,color)').eq('member_id', mine.id)
         .order('awarded_on', { ascending: false }).limit(1));
+      let teaches = [];
+      if (mine.is_instructor) teaches = await unwrap(sb.from('course_instructors').select('course:courses(name)').eq('member_id', mine.id));
       practiceCard.append(
+        mine.is_instructor ? h('p', {}, 'Vous êtes enseignant sur : ', teaches.length ? teaches.map((t) => t.course && t.course.name).filter(Boolean).join(', ') : 'aucun cours pour le moment', '.') : null,
         h('p', {}, 'Grade actuel : ', g.length ? [beltDot(g[0].belt), ' ', h('strong', {}, g[0].belt.name)] : 'aucun'),
         h('a', { class: 'btn', href: `#/membre/${mine.id}` }, 'Voir ma fiche (grades, présences)'));
     } else if (auth.isAdmin()) {

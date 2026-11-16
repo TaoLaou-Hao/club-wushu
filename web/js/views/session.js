@@ -1,25 +1,27 @@
 // Détail d'une séance : intervenant, présences, compte rendu, techniques, statut.
 import { sb, unwrap } from '../supabaseClient.js';
 import { h, clear, button, field, selectEl, formModal, confirmDialog, toast, showError, badge, emptyState } from '../dom.js';
-import { state, isAdmin } from '../auth.js';
+import { isAdmin } from '../auth.js';
 import { go } from '../router.js';
 import { fmtLong, hm, STATUS_LABEL, fullName, byMemberName, norm } from '../util.js';
 
 export async function renderSession(root, { id }) {
   const s = await unwrap(sb.from('sessions')
-    .select('id,course_id,date,start_time,end_time,status,summary,notes,instructor_id,course:courses(id,name,location,level),instructor:profiles!sessions_instructor_id_fkey(full_name)')
+    .select('id,course_id,date,start_time,end_time,status,summary,notes,instructor_id,course:courses(id,name,location,level),instructor:members!sessions_instructor_id_fkey(id,first_name,last_name)')
     .eq('id', id).maybeSingle());
   if (!s) { root.appendChild(h('div', { class: 'card' }, emptyState('Séance introuvable.'), h('a', { class: 'btn', href: '#/calendrier' }, 'Retour au calendrier'))); return; }
 
-  const [canRes, quals, enrolled, att, techs, sTechs] = await Promise.all([
+  const [canRes, quals, enrolled, att, techs, sTechs, myMemberRes] = await Promise.all([
     sb.rpc('can_manage_session', { p_session_id: id }),
-    unwrap(sb.from('course_instructors').select('profile_id,profile:profiles(full_name)').eq('course_id', s.course_id)),
+    unwrap(sb.from('course_instructors').select('member_id,member:members(id,first_name,last_name)').eq('course_id', s.course_id)),
     unwrap(sb.from('course_members').select('member:members(id,first_name,last_name,active,anonymized_at)').eq('course_id', s.course_id)),
     unwrap(sb.from('attendance').select('member_id,present').eq('session_id', id)),
     unwrap(sb.from('techniques').select('id,name,category').order('name')),
     unwrap(sb.from('session_techniques').select('technique_id').eq('session_id', id)),
+    sb.rpc('my_member_id'),
   ]);
   if (canRes.error) throw canRes.error;
+  const myMemberId = myMemberRes.error ? null : (myMemberRes.data || null);
   const canManage = canRes.data === true;
   const admin = isAdmin();
 
@@ -103,13 +105,13 @@ export async function renderSession(root, { id }) {
   function drawInstructor() {
     clear(instrBox);
     instrBox.appendChild(h('h2', {}, 'Intervenant'));
-    const sel = selectEl([['', 'Aucun intervenant'], ...quals.map((q) => [q.profile_id, q.profile ? q.profile.full_name || 'Sans nom' : 'Sans nom'])],
+    const sel = selectEl([['', 'Aucun intervenant'], ...quals.filter((q) => q.member).map((q) => [q.member_id, fullName(q.member)])],
       s.instructor_id || '', { disabled: !canManage, 'aria-label': 'Intervenant' });
     sel.addEventListener('change', () => setInstructor(sel.value || null, sel));
     instrBox.appendChild(h('div', { class: 'btn-row' }, sel));
-    const iAmQualified = quals.some((q) => q.profile_id === state.user.id);
-    if (canManage && iAmQualified && s.instructor_id !== state.user.id) {
-      instrBox.appendChild(h('div', { class: 'btn-row' }, button('Je prends ce cours', () => setInstructor(state.user.id), 'btn-primary')));
+    const iAmQualified = !!myMemberId && quals.some((q) => q.member_id === myMemberId);
+    if (canManage && iAmQualified && s.instructor_id !== myMemberId) {
+      instrBox.appendChild(h('div', { class: 'btn-row' }, button('Je prends ce cours', () => setInstructor(myMemberId), 'btn-primary')));
     }
     if (!quals.length) instrBox.appendChild(h('p', { class: 'muted small' }, 'Aucune personne habilitée pour ce cours (voir la page Cours).'));
   }

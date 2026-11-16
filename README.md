@@ -49,6 +49,7 @@ Documents complémentaires :
 2. Ouvrez le fichier `supabase/schema.sql` du dépôt, copiez tout son contenu et collez-le dans l'éditeur.
 3. Cliquez sur **Run**.
 4. Vérifiez qu'il n'y a pas d'erreur rouge. Un message « Success » ou équivalent doit apparaître.
+5. Exécutez ensuite, **dans l'ordre**, chaque fichier du dossier `supabase/migrations/` (`002_…`, puis `003_…`), de la même façon. Ces migrations peuvent être rejouées sans risque.
 
 > Le script crée les tables une seule fois : le réexécuter échouera ou modifiera la base. En cas d'erreur, ne relancez pas le script au hasard et demandez de l'aide avant de rien supprimer.
 

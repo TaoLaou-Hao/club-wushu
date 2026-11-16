@@ -1,17 +1,18 @@
 // Calendrier : vue semaine / mois, filtres, génération des séances (admin).
 import { sb, unwrap } from '../supabaseClient.js';
 import { h, clear, button, field, selectEl, formModal, toast, showError, loading, emptyState, badge } from '../dom.js';
-import { state, isAdmin } from '../auth.js';
-import { iso, todayIso, parseDate, addDays, mondayOf, fmtDay, fmtMonth, fmtShort, hm, WEEKDAYS, STATUS_LABEL } from '../util.js';
+import { isAdmin } from '../auth.js';
+import { fullName, iso, todayIso, parseDate, addDays, mondayOf, fmtDay, fmtMonth, fmtShort, hm, WEEKDAYS, STATUS_LABEL } from '../util.js';
 
 // Préférences de vue conservées en mémoire seulement (pas de localStorage).
 const view = { mode: 'week', anchor: new Date(), course: '', mine: false };
 
 export async function renderCalendar(root) {
-  const [courses, mineRows] = await Promise.all([
+  const [courses, myMemberId] = await Promise.all([
     unwrap(sb.from('courses').select('id,name').order('name')),
-    unwrap(sb.from('course_instructors').select('course_id').eq('profile_id', state.user.id)),
+    sb.rpc('my_member_id').then(({ data, error }) => { if (error) throw error; return data || null; }),
   ]);
+  const mineRows = myMemberId ? await unwrap(sb.from('course_instructors').select('course_id').eq('member_id', myMemberId)) : [];
   const myIds = mineRows.map((r) => r.course_id);
 
   const title = h('h1', { class: 'cal-title', 'aria-live': 'polite' });
@@ -67,7 +68,7 @@ export async function renderCalendar(root) {
     clear(body).appendChild(loading());
     try {
       let q = sb.from('sessions')
-        .select('id,date,start_time,end_time,status,course_id,instructor_id,course:courses(name,location,level),instructor:profiles!sessions_instructor_id_fkey(full_name)')
+        .select('id,date,start_time,end_time,status,course_id,instructor_id,course:courses(name,location,level),instructor:members!sessions_instructor_id_fkey(id,first_name,last_name)')
         .gte('date', iso(from)).lte('date', iso(to))
         .order('date').order('start_time');
       if (view.course) q = q.eq('course_id', view.course);
@@ -98,7 +99,7 @@ function sessionCard(s) {
   return h('a', { class: `sess st-${s.status}`, href: `#/seance/${s.id}` },
     h('span', { class: 'sess-time' }, `${hm(s.start_time)}–${hm(s.end_time)}`),
     h('span', { class: 'sess-name' }, s.course ? s.course.name : 'Cours'),
-    h('span', { class: 'sess-instr' }, s.instructor ? s.instructor.full_name || 'Intervenant' : 'Aucun intervenant'),
+    h('span', { class: 'sess-instr' }, s.instructor ? fullName(s.instructor) : 'Aucun intervenant'),
     s.status !== 'planned' ? badge(STATUS_LABEL[s.status], 'st-' + s.status) : null);
 }
 

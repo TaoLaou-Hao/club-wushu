@@ -180,3 +180,55 @@ insert into member_grades (member_id, belt_level_id) select '20000000-0000-0000-
 update members set profile_id=null where id='20000000-0000-0000-0000-000000000009';
 select profile_id is not null as still_linked from members where id='20000000-0000-0000-0000-000000000009';
 reset role;
+
+-- ===== Migration 003 (charger : stub, schema.sql, 002, données t003.sql, 003, puis ces tests) =====
+\set QUIET 1
+create or replace function pg_temp.as_user(u text) returns void language plpgsql as $$ begin perform set_config('request.jwt.claim.sub', u, false); end $$;
+-- données "avant migration" : admin a, prof b (habilité, a pris une séance)
+insert into auth.users (id,email,raw_user_meta_data) values
+ ('00000000-0000-0000-0000-00000000000a','admin@x.fr','{"full_name":"Tao Laou-Hao"}'),
+ ('00000000-0000-0000-0000-00000000000b','prof@x.fr','{"full_name":"Li Wei"}'),
+ ('00000000-0000-0000-0000-00000000000c','prof2@x.fr','{"full_name":"Sans Habilitation"}');
+update profiles set role='admin' where id='00000000-0000-0000-0000-00000000000a';
+update profiles set role='teacher' where id in ('00000000-0000-0000-0000-00000000000b','00000000-0000-0000-0000-00000000000c');
+insert into courses (id,name,weekday,start_time,end_time,start_date) values ('10000000-0000-0000-0000-000000000001','Taolu',3,'19:00','20:30','2026-11-01');
+insert into course_instructors values ('10000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-00000000000b');
+insert into members (id,first_name,last_name) values ('20000000-0000-0000-0000-000000000001','Léa','Martin');
+insert into course_members values ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-000000000001');
+insert into sessions (id,course_id,date,start_time,end_time,instructor_id) values ('30000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001',current_date + 7,'19:00','20:30','00000000-0000-0000-0000-00000000000b');
+\set QUIET 1
+create or replace function pg_temp.as_user(u text) returns void language plpgsql as $$ begin perform set_config('request.jwt.claim.sub', u, false); end $$;
+\echo '== migrated data'
+select first_name, last_name, is_instructor, profile_id is not null linked from members order by first_name;
+select (select first_name from members where id=ci.member_id) from course_instructors ci;
+select (select first_name from members where id=s.instructor_id) instr from sessions s;
+\echo '== prof b (linked instructor) ticks attendance: ok'
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000b'); set role authenticated;
+insert into attendance (session_id, member_id) values ('30000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-000000000001');
+select count(*) att from attendance;
+select my_member_id() is not null as has_member;
+\echo 'prof b sets himself instructor flag on another fiche (ignored)'
+update members set is_instructor=true where id='20000000-0000-0000-0000-000000000001';
+reset role;
+select is_instructor as lea_instructor from members where id='20000000-0000-0000-0000-000000000001';
+\echo '== prof c (no fiche) ticks: ERROR'
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000c'); set role authenticated;
+insert into attendance (session_id, member_id) values ('30000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-000000000001') on conflict do nothing;
+update attendance set present=false;
+reset role;
+select bool_and(present) still_present from attendance;
+\echo '== admin: instructor without account'
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a'); set role authenticated;
+insert into members (id,first_name,last_name,is_instructor) values ('20000000-0000-0000-0000-000000000002','Chen','Sans-Compte',true);
+insert into course_instructors values ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-000000000002');
+update sessions set instructor_id='20000000-0000-0000-0000-000000000002' where id='30000000-0000-0000-0000-000000000001';
+select (select first_name from members where id=instructor_id) from sessions;
+\echo 'non-instructor fiche as course instructor: ERROR'
+insert into course_instructors values ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-000000000001');
+\echo 'session instructor not qualified: ERROR'
+update sessions set instructor_id='20000000-0000-0000-0000-000000000001';
+\echo 'unflag instructor removes qualification'
+update members set is_instructor=false where id='20000000-0000-0000-0000-000000000002';
+select count(*) ci_left from course_instructors;
+select instructor_id is null as cleared from sessions;
+reset role;
