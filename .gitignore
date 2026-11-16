@@ -1,0 +1,13 @@
+# Ne jamais versionner de secrets ni d'exports de données
+.env
+*.env
+*.sql.gz
+*.dump
+backup*/
+exports/
+*.7z
+# Sauvegardes / dumps SQL (seuls les scripts du dossier supabase/ sont versionnés)
+*.sql
+!supabase/*.sql
+*.json.bak
+membre-*.json
