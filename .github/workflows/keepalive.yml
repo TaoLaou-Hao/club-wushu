@@ -1,22 +1,24 @@
 # Empêche la mise en pause du projet Supabase gratuit (inactivité > 7 jours).
-# Secrets requis (Settings > Secrets and variables > Actions) :
-#   SUPABASE_URL       ex. https://abcd.supabase.co
-#   SUPABASE_ANON_KEY  clé publique (anon / publishable) — JAMAIS la clé service_role
+# Lit l'URL et la clé PUBLIQUE (publishable) dans web/js/config.js : aucun secret requis.
+# La clé service_role / secrète ne doit JAMAIS être utilisée ici.
 name: Supabase keepalive
 on:
   schedule:
     - cron: "17 6 * * 1,4"   # lundi et jeudi
   workflow_dispatch:
-permissions: {}
+permissions:
+  contents: read
 jobs:
   ping:
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 3
     steps:
+      - uses: actions/checkout@v4
       - name: Ping
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
-          curl --fail --silent --show-error --retry 3 --retry-delay 10 --max-time 20 -X POST "$SUPABASE_URL/rest/v1/rpc/keepalive" \
-            -H "apikey: $SUPABASE_ANON_KEY" -H "Content-Type: application/json" -d '{}'
+          URL=$(grep -oP "SUPABASE_URL = '\K[^']+" web/js/config.js)
+          KEY=$(grep -oP "SUPABASE_ANON_KEY = '\K[^']+" web/js/config.js)
+          case "$KEY" in sb_publishable_*|eyJ*) ;; *) echo "Clé publique introuvable"; exit 1;; esac
+          curl --fail --silent --show-error --retry 3 --retry-delay 10 --max-time 20 \
+            -X POST "$URL/rest/v1/rpc/keepalive" \
+            -H "apikey: $KEY" -H "Content-Type: application/json" -d '{}'

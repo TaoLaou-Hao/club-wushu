@@ -162,11 +162,8 @@ where id = (select id from auth.users where email = 'votre.email@exemple.fr');
 
 Le plan gratuit met le projet en pause après une semaine sans activité. Le workflow `.github/workflows/keepalive.yml` envoie une requête légère deux fois par semaine.
 
-1. Dans GitHub : **Settings > Secrets and variables > Actions**, puis **New repository secret**.
-2. Créez deux secrets :
-   - `SUPABASE_URL` : l'adresse `https://<projet>.supabase.co` ;
-   - `SUPABASE_ANON_KEY` : la clé publique `anon` (ou `publishable`).
-3. Dans l'onglet **Actions**, lancez une fois le workflow **keepalive** manuellement (**Run workflow**) pour vérifier qu'il est vert.
+1. Aucun secret à créer : le workflow lit l'adresse et la clé **publique** directement dans `web/js/config.js`.
+2. Dans l'onglet **Actions**, lancez une fois le workflow **keepalive** manuellement (**Run workflow**) pour vérifier qu'il est vert.
 
 > GitHub désactive les workflows planifiés d'un dépôt public sans aucune activité depuis 60 jours. Si le projet ne bouge plus, relancez le workflow à la main ou faites un petit commit.
 
