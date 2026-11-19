@@ -5,7 +5,7 @@ import { state } from '../auth.js';
 import { ROLE_LABEL, fmtStamp } from '../util.js';
 
 const TABS = [
-  ['accounts', 'Comptes'], ['codes', 'Codes enseignant'], ['belts', 'Grades'],
+  ['accounts', 'Comptes'], ['codes', 'Codes d’invitation'], ['belts', 'Grades'],
   ['techniques', 'Techniques'], ['audit', 'Journal d’audit'], ['rgpd', 'RGPD'],
 ];
 let currentTab = 'accounts';
@@ -41,7 +41,7 @@ const SECTIONS = { accounts, codes, belts, techniques, audit, rgpd };
 async function accounts(box) {
   const users = await unwrap(sb.rpc('list_users'));
   const again = () => { clear(box); return accounts(box); };
-  box.append(h('h2', {}, 'Comptes'), h('p', { class: 'muted' }, 'Les nouveaux comptes sont « En attente » tant qu’un administrateur ne leur attribue pas un rôle.'));
+  box.append(h('h2', {}, 'Comptes'), h('p', { class: 'muted' }, 'Rôles : En attente (aucun accès), Membre (voit uniquement son espace), Enseignant (gère ses cours et séances), Administrateur (accès complet). Les nouveaux comptes sont « En attente » sans code d’invitation.'));
   const tbody = h('tbody');
   for (const u of users) {
     const sel = selectEl(Object.entries(ROLE_LABEL), u.role, { 'aria-label': `Rôle de ${u.full_name || u.email}` });
@@ -67,25 +67,26 @@ async function accounts(box) {
 
 // ---------------------------------------------------------------- Codes enseignant
 async function codes(box) {
-  const rows = await unwrap(sb.from('invite_codes').select('id,label,uses,max_uses,expires_at,revoked,created_at').order('created_at', { ascending: false }));
+  const rows = await unwrap(sb.from('invite_codes').select('id,label,uses,max_uses,expires_at,revoked,created_at,role,member_id').order('created_at', { ascending: false }));
   const again = () => { clear(box); return codes(box); };
   const label = h('input', { type: 'text', maxlength: 100, placeholder: 'ex. Nouvel enseignant' });
   const days = h('input', { type: 'number', min: 1, max: 30, value: 7, required: true, inputmode: 'numeric' });
   const uses = h('input', { type: 'number', min: 1, max: 20, value: 1, required: true, inputmode: 'numeric' });
+  const roleSel = selectEl([['teacher', 'Enseignant'], ['member', 'Membre']], 'teacher');
   box.append(
-    h('h2', {}, 'Codes enseignant'),
-    h('p', { class: 'muted' }, 'Un code donne uniquement le rôle « Enseignant ». Jamais administrateur.'),
+    h('h2', {}, 'Codes d’invitation'),
+    h('p', { class: 'muted' }, 'Un code donne le rôle Enseignant ou Membre, jamais Administrateur.'),
     h('form', {
       class: 'card inline-grid',
       onsubmit: async (e) => {
         e.preventDefault();
         try {
-          const code = await unwrap(sb.rpc('create_invite_code', { p_label: label.value.trim() || null, p_days: Number(days.value), p_max_uses: Number(uses.value) }));
-          showCode(code);
+          const code = await unwrap(sb.rpc('create_invite_code', { p_label: label.value.trim() || null, p_days: Number(days.value), p_max_uses: Number(uses.value), p_role: roleSel.value }));
+          showCode(code, roleSel.value);
           again();
         } catch (err) { showError(err); }
       },
-    }, field('Libellé', label), field('Validité (jours, 1 à 30)', days), field('Utilisations (1 à 20)', uses),
+    }, field('Libellé', label), field('Rôle donné', roleSel), field('Validité (jours, 1 à 30)', days), field('Utilisations (1 à 20)', uses),
     h('button', { type: 'submit', class: 'btn btn-primary' }, 'Créer un code')));
   if (!rows.length) box.append(emptyState('Aucun code.'));
   const now = Date.now();
@@ -95,6 +96,7 @@ async function codes(box) {
     const st = r.revoked ? ['Révoqué', 'badge-off'] : expired ? ['Expiré', 'badge-off'] : r.uses >= r.max_uses ? ['Épuisé', 'badge-off'] : ['Actif', 'badge-ok'];
     tbody.appendChild(h('tr', {},
       h('td', { 'data-label': 'Libellé' }, r.label || '—'),
+      h('td', { 'data-label': 'Rôle' }, ROLE_LABEL[r.role] || 'Enseignant', r.member_id ? [' ', badge('Activation fiche', 'badge-ok')] : null),
       h('td', { 'data-label': 'Utilisations' }, `${r.uses} / ${r.max_uses}`),
       h('td', { 'data-label': 'Expire le' }, fmtStamp(r.expires_at)),
       h('td', { 'data-label': 'Statut' }, badge(st[0], st[1])),
@@ -105,14 +107,14 @@ async function codes(box) {
       }, 'btn-sm btn-danger-outline'))));
   }
   if (rows.length) box.append(h('div', { class: 'table-wrap' }, h('table', { class: 'table responsive' },
-    h('thead', {}, h('tr', {}, ['Libellé', 'Utilisations', 'Expire le', 'Statut', ''].map((t) => h('th', { scope: 'col' }, t)))), tbody)));
+    h('thead', {}, h('tr', {}, ['Libellé', 'Rôle', 'Utilisations', 'Expire le', 'Statut', ''].map((t) => h('th', { scope: 'col' }, t)))), tbody)));
 }
 
 // Affiche le code en clair UNE seule fois.
-function showCode(code) {
-  const out = h('input', { type: 'text', readOnly: true, value: code, class: 'code-out', 'aria-label': 'Code enseignant' });
+function showCode(code, role) {
+  const out = h('input', { type: 'text', readOnly: true, value: code, class: 'code-out', 'aria-label': 'Code d’invitation' });
   const m = modal({
-    title: 'Code enseignant créé', dismissible: false,
+    title: role === 'member' ? 'Code membre créé' : 'Code enseignant créé', dismissible: false,
     content: h('div', {},
       h('p', { class: 'warn' }, 'Ce code ne sera plus jamais affiché. Transmettez-le uniquement à la personne concernée.'),
       out),

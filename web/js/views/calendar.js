@@ -2,7 +2,7 @@
 import { sb, unwrap } from '../supabaseClient.js';
 import { h, clear, button, field, selectEl, formModal, toast, showError, loading, emptyState, badge } from '../dom.js';
 import { isAdmin } from '../auth.js';
-import { fullName, iso, todayIso, parseDate, addDays, mondayOf, fmtDay, fmtMonth, fmtShort, hm, WEEKDAYS, STATUS_LABEL } from '../util.js';
+import { fullName, iso, todayIso, parseDate, addDays, mondayOf, fmtDay, fmtMonth, fmtShort, hm, WEEKDAYS, STATUS_LABEL, downloadIcs } from '../util.js';
 
 // Préférences de vue conservées en mémoire seulement (pas de localStorage).
 const view = { mode: 'week', anchor: new Date(), course: '', mine: false };
@@ -46,6 +46,7 @@ export async function renderCalendar(root) {
         button('Aujourd’hui', () => { view.anchor = new Date(); load(); }),
         button('›', () => shift(1), 'btn-icon', { 'aria-label': 'Suivant' })),
       h('div', { class: 'seg-group', role: 'group', 'aria-label': 'Affichage' }, segWeek, segMonth),
+      button('Exporter (.ics)', exportIcs),
       isAdmin() ? button('Générer les séances', () => generateModal(load), 'btn-primary') : null),
     title,
     h('div', { class: 'toolbar filters' },
@@ -54,6 +55,22 @@ export async function renderCalendar(root) {
     h('div', { class: 'legend' },
       ...['planned', 'done', 'cancelled'].map((s) => h('span', { class: 'legend-item st-' + s }, STATUS_LABEL[s]))),
     body);
+
+  // Export : séances non annulées des 8 prochaines semaines, selon les filtres actifs
+  async function exportIcs() {
+    try {
+      let q = sb.from('sessions')
+        .select('id,date,start_time,end_time,status,course:courses(name,location)')
+        .gte('date', todayIso()).lte('date', iso(addDays(new Date(), 56))).neq('status', 'cancelled')
+        .order('date').order('start_time');
+      if (view.course) q = q.eq('course_id', view.course);
+      if (view.mine) q = q.in('course_id', myIds.length ? myIds : ['00000000-0000-0000-0000-000000000000']);
+      const rows = await unwrap(q);
+      if (!rows.length) { toast('Aucune séance à exporter.', 'info'); return; }
+      downloadIcs(rows.map((s) => ({ uid: s.id, date: s.date, start: s.start_time, end: s.end_time, title: s.course ? s.course.name : 'Cours', location: s.course && s.course.location })), 'seances-club.ics');
+      toast(`${rows.length} séance(s) exportée(s).`, 'success');
+    } catch (e) { showError(e); }
+  }
 
   let seq = 0;
   async function load() {

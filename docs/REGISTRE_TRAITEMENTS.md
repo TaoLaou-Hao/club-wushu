@@ -26,7 +26,8 @@ Fiche de registre pour le traitement « Gestion de la section technique ». Les 
 3. **Suivre la progression technique** : niveaux de ceinture (grades) et comptes rendus de séance, sans donnée de santé.
 4. **Joindre les personnes** en cas de besoin lié à la pratique, et contacter les représentants légaux des mineurs.
 5. **Assurer la sécurité** de l'application : journal d'audit, limitation des tentatives, contrôle des accès.
-6. **Respecter les droits des personnes** : export, rectification, effacement.
+6. **Respecter les droits des personnes** : export, rectification, effacement. Chaque pratiquant disposant d'un compte peut consulter ses données, télécharger une copie et corriger ses coordonnées depuis « Mon espace ».
+7. **Informer les pratiquants** de leur planning, de leur progression et de leur assiduité, et leur permettre d'annoncer leur présence ou leur absence aux séances à venir.
 
 Finalités exclues : prospection commerciale, profilage, revente ou cession des données, décisions automatisées.
 
@@ -70,7 +71,8 @@ Effectif estimé : [NOMBRE] membres, [NOMBRE] enseignants.
 | Pratique | Grade, date d'obtention, note (500 caractères au maximum) | Pas de donnée de santé |
 | Présence | Présence à une séance, enseignant ayant pris la présence, date | |
 | Séances | Compte rendu (2000 caractères au maximum), techniques travaillées | Pas de donnée de santé |
-| Comptes utilisateurs | Email, nom affiché, rôle, dernière connexion | Enseignants et administrateurs |
+| Réponses aux séances | « Je viens » / « Je ne viens pas » pour une séance à venir, date de réponse | Saisie par le pratiquant ; aucun motif demandé (évite toute donnée de santé) |
+| Comptes utilisateurs | Email, nom affiché, rôle, dernière connexion | Membres, enseignants et administrateurs |
 | Journal d'audit | Action, identifiant d'enregistrement, colonnes modifiées, horodatage | Aucune valeur personnelle |
 | Codes d'invitation | Hachage SHA-256 du code, date d'expiration, nombre d'utilisations | Le code en clair n'est jamais conservé |
 
@@ -166,3 +168,4 @@ Une demande reçue par un enseignant est transmise à l'administrateur. Chaque d
 | Date | Modification | Par |
 |---|---|---|
 | [À COMPLÉTER] | Création du registre | [NOM] |
+| 2026-11 | Espace membre : accès des pratiquants à leurs propres données, réponses aux séances, codes d'activation | [NOM] |

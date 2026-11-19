@@ -98,7 +98,7 @@ function buildShell() {
       toggle, navEl),
     v ? h('div', { class: 'preview-bar', role: 'status' },
       h('span', {}, `Aperçu : vous voyez l’appli comme ${v.name} (${ROLE_LABEL[v.role]}). Lecture seule, aucune modification possible.`),
-      h('button', { type: 'button', class: 'btn btn-sm', onclick: () => { preview.exit(); router.go('/calendrier'); } }, 'Quitter l’aperçu')) : null,
+      h('button', { type: 'button', class: 'btn btn-sm', onclick: () => { preview.exit(); router.go('/calendrier'); } }, 'Quitter l’aperçu')) : '',
     viewBox,
     h('footer', { class: 'footer' }, h('a', { href: '#/confidentialite' }, 'Confidentialité')));
 }

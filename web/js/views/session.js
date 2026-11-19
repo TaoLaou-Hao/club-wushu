@@ -21,6 +21,12 @@ export async function renderSession(root, { id }) {
     sb.rpc('my_member_id'),
   ]);
   if (canRes.error) throw canRes.error;
+  // Réponses des membres (staff uniquement) : une erreur n'empêche pas l'affichage
+  const rsvp = new Map();
+  try {
+    const rs = await unwrap(sb.from('session_rsvp').select('member_id,status').eq('session_id', id));
+    for (const r of rs) rsvp.set(r.member_id, r.status);
+  } catch { /* facultatif */ }
   const myMemberId = myMemberRes.error ? null : (myMemberRes.data || null);
   const canManage = canRes.data === true;
   const admin = isAdmin();
@@ -141,6 +147,11 @@ export async function renderSession(root, { id }) {
         button('Tous présents', allPresent, 'btn-primary'),
         button('Ajouter un membre non inscrit', addMemberModal)));
     }
+    if (rsvp.size) {
+      const yes = [...rsvp.values()].filter((x) => x === 'present').length;
+      const no = [...rsvp.values()].filter((x) => x === 'absent').length;
+      attBox.append(h('p', { class: 'muted small' }, `Réponses : ${yes} ${yes > 1 ? 'viennent' : 'vient'}, ${no} ${no > 1 ? 'absents prévus' : 'absent prévu'}`));
+    }
     if (!items.length) attBox.append(emptyState('Aucun membre inscrit à ce cours. Inscrivez-les depuis la page Cours.'));
     const ul = h('ul', { class: 'att-list' });
     for (const r of items) {
@@ -151,7 +162,9 @@ export async function renderSession(root, { id }) {
           'aria-pressed': String(r.present === true), disabled: !canManage,
           'aria-label': `${fullName(r.m)} : ${label}. Appuyer pour changer.`,
           onclick: () => mark([r.m.id], r.present !== true),
-        }, h('span', { class: 'att-name' }, fullName(r.m)), h('span', { class: 'att-state' }, label))));
+        }, h('span', { class: 'att-name' }, fullName(r.m),
+          rsvp.get(r.m.id) ? [' ', badge(rsvp.get(r.m.id) === 'absent' ? 'Prévenu absent' : 'Vient', rsvp.get(r.m.id) === 'absent' ? 'badge-off' : 'badge-ok')] : null),
+          h('span', { class: 'att-state' }, label))));
     }
     attBox.appendChild(ul);
   }

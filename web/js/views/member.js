@@ -4,6 +4,7 @@ import { h, clear, append, button, field, selectEl, formModal, confirmDialog, to
 import { isAdmin, state } from '../auth.js';
 import { go } from '../router.js';
 import { fmtShort, todayIso, downloadJson, fullName, errMsg, ROLE_LABEL } from '../util.js';
+import { modal } from '../dom.js';
 import { beltDot, memberForm } from './members.js';
 
 export async function renderMember(root, { id }) {
@@ -37,7 +38,8 @@ export async function renderMember(root, { id }) {
       h('dt', {}, 'Compte lié'), h('dd', {}, linked ? [linked.full_name || '(sans nom)', ' ', badge(ROLE_LABEL[linked.role] || linked.role, 'badge-ok')] : 'Aucun')),
     anonymized ? null : h('div', { class: 'btn-row' },
       button('Modifier', () => memberForm(m, reload)),
-      isAdmin() ? button(m.profile_id ? 'Changer le compte lié' : 'Lier à un compte', linkAccount) : null));
+      isAdmin() ? button(m.profile_id ? 'Changer le compte lié' : 'Lier à un compte', linkAccount) : null,
+      isAdmin() && !m.profile_id ? button('Créer un code d’activation', activationCode) : null));
 
   // ----- Statut d'enseignant (admin) -----
   const instrCard = isAdmin() && !anonymized ? h('div', { class: 'card' },
@@ -78,6 +80,44 @@ export async function renderMember(root, { id }) {
         reload();
       },
     });
+  }
+
+  function activationCode() {
+    const roleSel = selectEl(m.is_instructor ? [['member', 'Membre'], ['teacher', 'Enseignant']] : [['member', 'Membre']], 'member');
+    const days = h('input', { type: 'number', min: 1, max: 30, value: 14, required: true, inputmode: 'numeric' });
+    formModal({
+      title: 'Créer un code d’activation',
+      submitLabel: 'Créer le code',
+      body: [
+        h('p', { class: 'muted' }, 'Quand la personne saisit ce code après avoir créé son compte, son compte est automatiquement lié à cette fiche. Le code est à usage unique.'),
+        field('Rôle donné', roleSel), field('Validité (jours, 1 à 30)', days)],
+      onSubmit: async () => {
+        const n = Number(days.value);
+        const code = await unwrap(sb.rpc('create_invite_code', { p_label: 'Activation ' + fullName(m), p_days: n, p_max_uses: 1, p_role: roleSel.value, p_member_id: m.id }));
+        showActivation(code, n);
+      },
+    });
+  }
+  function showActivation(code, n) {
+    const message = `Bonjour ${m.first_name}, pour accéder à l’espace du club : 1) créez un compte sur ${location.origin + location.pathname} 2) saisissez ce code : ${code} (valable ${n} jours, usage unique).`;
+    const out = h('input', { type: 'text', readOnly: true, value: code, class: 'code-out', 'aria-label': 'Code d’activation' });
+    const msg = h('textarea', { rows: 5, readOnly: true, 'aria-label': 'Message à envoyer' }); msg.value = message;
+    const copy = async (text, el, ok) => {
+      try { await navigator.clipboard.writeText(text); toast(ok, 'success'); }
+      catch { el.focus(); el.select(); toast('Copie automatique impossible : sélectionnez et copiez le texte.', 'error'); }
+    };
+    const dlg = modal({
+      title: 'Code d’activation créé', dismissible: false,
+      content: h('div', {},
+        h('p', { class: 'warn' }, 'Ce code ne sera plus jamais affiché. Transmettez-le uniquement à la personne concernée.'),
+        out, h('p', { class: 'hint' }, 'Message prêt à envoyer'), msg),
+      actions: [
+        button('Copier', () => copy(code, out, 'Code copié.')),
+        button('Copier le message', () => copy(message, msg, 'Message copié.')),
+        button('J’ai noté le code, fermer', () => dlg.close(), 'btn-primary'),
+      ],
+    });
+    out.select();
   }
 
   // ----- Coordonnées (chargées uniquement à la demande, jamais mises en cache) -----

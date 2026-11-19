@@ -64,3 +64,50 @@ export function downloadJson(obj, filename) {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+// Export CSV (séparateur « ; », BOM UTF-8 pour Excel). rows = tableau de tableaux.
+export function downloadCsv(rows, filename) {
+  const cell = (v) => {
+    const s = v === null || v === undefined ? '' : String(v);
+    return /[;"\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const text = '\uFEFF' + rows.map((r) => r.map(cell).join(';')).join('\r\n') + '\r\n';
+  const blob = new Blob([text], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// Export iCalendar. events = [{uid, date 'YYYY-MM-DD', start 'HH:MM[:SS]', end, title, location}]
+export function downloadIcs(events, filename) {
+  const esc = (s) => String(s || '').replace(/\\/g, '\\\\').replace(/;/g, '\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
+  const d = new Date();
+  const stamp = `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}Z`;
+  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Club Wushu//FR', 'CALSCALE:GREGORIAN'];
+  for (const e of events) {
+    const full = (t) => { const p = (t || '00:00').split(':'); return `${p[0] || '00'}${p[1] || '00'}${p[2] || '00'}`; };
+    lines.push('BEGIN:VEVENT',
+      `UID:${esc(e.uid)}@club-wushu`,
+      `DTSTAMP:${stamp}`,
+      `DTSTART;TZID=Europe/Paris:${e.date.replace(/-/g, '')}T${full(e.start)}`,
+      `DTEND;TZID=Europe/Paris:${e.date.replace(/-/g, '')}T${full(e.end)}`,
+      `SUMMARY:${esc(e.title)}`);
+    if (e.location) lines.push(`LOCATION:${esc(e.location)}`);
+    lines.push('END:VEVENT');
+  }
+  lines.push('END:VCALENDAR');
+  const blob = new Blob([lines.join('\r\n') + '\r\n'], { type: 'text/calendar;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}

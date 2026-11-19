@@ -38,6 +38,8 @@ Nous ne faisons **ni publicité, ni revente** de vos données.
 - Les **enseignants** du club, pour les cours qui leur sont confiés. Ils voient votre identité et vos présences. Vos coordonnées ne sont consultables qu'à la demande, et chaque consultation est enregistrée.
 - Les **prestataires techniques** qui font fonctionner l'application (hébergement et authentification). Ils ne peuvent agir que pour le compte du club et selon ses instructions.
 
+- **Vous-même**, si vous avez un compte : votre espace affiche vos cours, vos présences, vos grades et les comptes rendus des séances (sans les notes internes des enseignants). Vous n'y voyez jamais les données des autres pratiquants.
+
 Nous ne communiquons vos données à personne d'autre, sauf obligation légale.
 
 ## Où sont-elles hébergées ?
@@ -67,6 +69,8 @@ Vous pouvez, à tout moment et gratuitement :
 - demander une **limitation** de leur utilisation ;
 - vous **opposer** à un traitement fondé sur l'intérêt légitime ;
 - obtenir la **portabilité** de vos données, c'est-à-dire leur transmission dans un format réutilisable.
+
+Si vous avez un compte, vous pouvez aussi, depuis **Mon espace**, télécharger vos données et corriger votre email, votre téléphone et votre contact d'urgence.
 
 Pour exercer vos droits, écrivez à **[ADRESSE EMAIL DÉDIÉE]** en précisant votre nom et le droit demandé. Nous répondons dans **un mois**, et nous pouvons vous demander une pièce d'identité en cas de doute sur votre identité.
 

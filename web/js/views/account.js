@@ -25,7 +25,9 @@ export async function renderAccount(root) {
       practiceCard.append(
         mine.is_instructor ? h('p', {}, 'Vous êtes enseignant sur : ', teaches.length ? teaches.map((t) => t.course && t.course.name).filter(Boolean).join(', ') : 'aucun cours pour le moment', '.') : null,
         h('p', {}, 'Grade actuel : ', g.length ? [beltDot(g[0].belt), ' ', h('strong', {}, g[0].belt.name)] : 'aucun'),
-        h('a', { class: 'btn', href: `#/membre/${mine.id}` }, 'Voir ma fiche (grades, présences)'));
+        h('div', { class: 'btn-row' },
+          h('a', { class: 'btn btn-primary', href: '#/espace' }, 'Voir mon espace'),
+          h('a', { class: 'btn', href: `#/membre/${mine.id}` }, 'Voir ma fiche (grades, présences)')));
     } else if (auth.isAdmin()) {
       practiceCard.append(
         h('p', { class: 'muted' }, 'Vous pratiquez aussi ? Créez votre fiche pour suivre vos grades et présences.'),

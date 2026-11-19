@@ -21,13 +21,15 @@ Ce document décrit les choix de sécurité de l'application (phase 1 : enseigna
 | Rôle | Qui | Ce qu'il peut faire |
 |---|---|---|
 | `pending` | Toute personne qui vient de créer un compte | Voir et modifier son propre profil, saisir un code d'invitation. Aucun accès aux données du club |
+| `member` | Pratiquant (code d'activation ou rôle attribué par un admin) | **Aucun accès direct aux tables** : les politiques RLS exigent un rôle enseignant ou admin. Il ne voit que **ses propres données**, uniquement via des fonctions dédiées (`member_space`, `export_my_data`, `get_my_contact`, `set_my_contact`, `set_my_rsvp`) qui partent de la fiche liée à son compte. Il ne voit jamais les notes internes des séances, les autres membres ni leurs coordonnées. Il peut modifier son email, téléphone et contact d'urgence (pas le n° de licence) et annoncer sa présence ou son absence aux séances à venir de ses cours |
 | `teacher` | Enseignant invité avec un code | Voir la liste des membres, les cours, les séances ; saisir présences, comptes rendus **pour les cours où il est habilité** ; grades et coordonnées uniquement pour les membres de ses cours |
 | `admin` | Responsable désigné (au moins deux recommandés) | Tout ce que fait un enseignant, plus : gérer les cours et les enseignants habilités, créer les codes, gérer les comptes, exporter, anonymiser, purger |
 
 **Règles :**
 
 - Un rôle ne se modifie **jamais** par un simple `UPDATE` : un trigger bloque toute tentative directe. Le changement passe par la fonction `set_user_role`, réservée aux administrateurs, et chaque changement est journalisé.
-- **Le rôle `admin` ne s'obtient jamais par code d'invitation.** Un code ne donne que le rôle `teacher`.
+- **Le rôle `admin` ne s'obtient jamais par code d'invitation.** Un code ne donne que le rôle `teacher` ou `member`.
+- **Aperçu « Voir comme » (admin)** : l'administrateur peut afficher l'interface telle qu'un enseignant ou un membre la voit. C'est un aperçu côté navigateur, **en lecture seule** : toutes les écritures et les fonctions sensibles sont bloquées dans l'appli, et le compte garde ses droits réels (aucune élévation possible). Pour un membre, les données affichées sont exactement les siennes (`member_space(p_member_id)`, réservé à l'admin et vérifié par la base).
 - **Dernier administrateur protégé** : la base refuse de retirer ou de supprimer le dernier administrateur.
 - Un administrateur ne peut pas supprimer son propre compte par cette voie.
 - Repasser un compte en `pending` retire ses habilitations sur les cours.
@@ -104,7 +106,8 @@ Les fonctions du schéma `private` ne sont accessibles à aucun rôle de l'API.
 - **Expiration** : de 1 à 30 jours, fixée à la création.
 - **Révocation** : un administrateur peut révoquer un code à tout moment.
 - **Limitation des essais** : 5 échecs maximum par heure et par compte. Les essais sont conservés 30 jours puis supprimés.
-- **Rôle figé** : un code ne peut conférer que le rôle `teacher`.
+- **Rôle figé** : un code ne peut conférer que le rôle `teacher` ou `member`, jamais `admin`.
+- **Code d'activation de fiche** : un code peut être rattaché à une fiche membre précise (usage unique). À son utilisation, le compte est lié automatiquement à cette fiche, si elle n'est pas déjà liée ni anonymisée. Créer un nouveau code d'activation pour une fiche révoque le précédent ; anonymiser la fiche révoque ses codes.
 - **Limite connue** : la limite porte sur le compte, pas sur l'adresse IP. Un attaquant pourrait créer plusieurs comptes ; la protection repose alors sur le nombre de comptes possibles (confirmation d'email) et sur la longueur du code, qui rend l'attaque par essais impraticable.
 
 ---

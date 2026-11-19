@@ -37,7 +37,7 @@ export async function renderCourses(root) {
       c.description ? h('p', { class: 'muted' }, c.description) : null,
       h('div', { class: 'btn-row' },
         canManage ? button('Inscrits', () => enrolModal(c)) : null,
-        isAdmin() ? button('Modifier', () => courseForm(c, list.map((r) => r.member_id), teachers, reload)) : null,
+        isAdmin() ? button('Modifier', () => courseForm(c, list.map((r) => r.member_id), teachers, reload, list)) : null,
         isAdmin() ? button('Supprimer', () => deleteCourse(c, reload), 'btn-danger-outline') : null)));
   }
   root.append(grid);
@@ -52,7 +52,14 @@ async function deleteCourse(c, reload) {
   } catch (e) { showError(e); }
 }
 
-function courseForm(c, currentInstr, teachers, reload) {
+function courseForm(c, currentInstr, teachersIn, reload, instrRows = []) {
+  // Union : enseignants actifs + habilités actuels qui ne sont plus dans la liste
+  const teachers = [...teachersIn];
+  const known = new Set(teachers.map((t) => t.id));
+  const staleIds = new Set();
+  for (const r of instrRows) {
+    if (r.member && !known.has(r.member_id)) { teachers.push({ ...r.member, profile_id: 'x' }); known.add(r.member_id); staleIds.add(r.member_id); }
+  }
   const name = h('input', { type: 'text', required: true, maxlength: 100, value: c ? c.name : '' });
   const desc = h('textarea', { rows: 2, maxlength: 1000 }); desc.value = c && c.description ? c.description : '';
   const level = h('input', { type: 'text', maxlength: 60, value: c && c.level ? c.level : '' });
@@ -66,7 +73,7 @@ function courseForm(c, currentInstr, teachers, reload) {
   const chosen = new Set(currentInstr);
   const boxes = h('div', { class: 'checklist' }, teachers.map((p) => {
     const cb = h('input', { type: 'checkbox', checked: chosen.has(p.id), onchange: () => { cb.checked ? chosen.add(p.id) : chosen.delete(p.id); } });
-    return h('label', { class: 'check' }, cb, ' ', fullName(p), p.profile_id ? '' : h('small', { class: 'muted' }, ' (sans compte)'));
+    return h('label', { class: 'check' }, cb, ' ', fullName(p), staleIds.has(p.id) ? h('small', { class: 'muted' }, ' (inactif)') : p.profile_id ? '' : h('small', { class: 'muted' }, ' (sans compte)'));
   }));
   formModal({
     title: c ? 'Modifier le cours' : 'Nouveau cours', wide: true,
