@@ -1,3 +1,4 @@
+-- TESTS LOCAUX UNIQUEMENT : NE PAS EXÉCUTER DANS SUPABASE (crée de faux comptes).
 \set ON_ERROR_STOP 0
 \set QUIET 1
 create or replace function pg_temp.as_user(u text) returns void language plpgsql as $$ begin perform set_config('request.jwt.claim.sub', u, false); end $$;
