@@ -9,5 +9,7 @@ exports/
 # Sauvegardes / dumps SQL (seuls les scripts du dossier supabase/ sont versionnés)
 *.sql
 !supabase/*.sql
+!supabase/migrations/*.sql
+!supabase/tests_locaux/*.sql
 *.json.bak
 membre-*.json
