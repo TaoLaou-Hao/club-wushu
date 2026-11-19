@@ -13,6 +13,10 @@ import { renderMembers } from './views/members.js';
 import { renderMember } from './views/member.js';
 import { renderAdmin } from './views/admin.js';
 import { renderAccount } from './views/account.js';
+import { renderSpace } from './views/space.js';
+import { renderStats } from './views/stats.js';
+import { openViewAsPicker } from './views/viewas.js';
+import * as preview from './preview.js';
 
 const root = document.getElementById('app');
 let viewBox = null;
@@ -20,12 +24,14 @@ let navEl = null;
 let booted = false; // vrai après le premier rendu d'authentification
 
 // ----- Routes -----
-router.register('/calendrier', renderCalendar);
-router.register('/seance/:id', renderSession);
-router.register('/cours', renderCourses);
-router.register('/membres', renderMembers);
-router.register('/membre/:id', renderMember);
+router.register('/calendrier', renderCalendar, { staff: true });
+router.register('/seance/:id', renderSession, { staff: true });
+router.register('/cours', renderCourses, { staff: true });
+router.register('/membres', renderMembers, { staff: true });
+router.register('/membre/:id', renderMember, { staff: true });
+router.register('/stats', renderStats, { staff: true });
 router.register('/admin', renderAdmin, { admin: true });
+router.register('/espace', renderSpace);
 router.register('/compte', renderAccount);
 router.register('/confidentialite', (el) => { el.appendChild(h('div', { class: 'card' }, privacyContent())); });
 
@@ -51,19 +57,27 @@ function render() {
     root.appendChild(pendingScreen(refreshProfile, logout));
     return;
   }
+  if (!auth.isRealAdmin()) preview.reset();
   buildShell();
   routeView();
 }
 
 function buildShell() {
   const p = auth.state.profile;
-  const links = [
+  const links = auth.isStaff() ? [
     ['/calendrier', 'Calendrier'],
     ['/cours', 'Cours'],
     ['/membres', 'Membres'],
+    ['/stats', 'Statistiques'],
+    ['/espace', 'Mon espace'],
     ...(auth.isAdmin() ? [['/admin', 'Administration']] : []),
     ['/compte', 'Mon compte'],
+  ] : [
+    ['/espace', 'Mon espace'],
+    ['/compte', 'Mon compte'],
   ];
+  const v = preview.viewAs();
+  const role = auth.role();
   const toggle = h('button', {
     type: 'button', class: 'nav-toggle', 'aria-expanded': 'false', 'aria-controls': 'main-nav',
     onclick: () => {
@@ -73,14 +87,18 @@ function buildShell() {
   }, 'Menu');
   navEl = h('nav', { id: 'main-nav', class: 'nav', 'aria-label': 'Navigation principale' },
     links.map(([path, label]) => h('a', { href: '#' + path, dataset: { path } }, label)),
+    auth.isRealAdmin() && !v ? h('button', { type: 'button', class: 'nav-logout', onclick: () => openViewAsPicker() }, 'Voir comme…') : null,
     h('button', { type: 'button', class: 'nav-logout', onclick: logout }, 'Déconnexion'));
   viewBox = h('main', { id: 'view', class: 'view', tabindex: '-1' });
   root.append(
     h('header', { class: 'topbar' },
-      h('a', { class: 'brand', href: '#/calendrier' }, 'Club Wushu – Section technique'),
-      h('span', { class: 'who' }, p.full_name || 'Utilisateur', ' ',
-        badge(ROLE_LABEL[p.role], p.role === 'admin' ? 'badge-admin' : 'badge-teacher')),
+      h('a', { class: 'brand', href: auth.isStaff() ? '#/calendrier' : '#/espace' }, 'Club Wushu – Section technique'),
+      h('span', { class: 'who' }, v ? v.name : (p.full_name || 'Utilisateur'), ' ',
+        badge(ROLE_LABEL[role] || role, role === 'admin' ? 'badge-admin' : 'badge-teacher')),
       toggle, navEl),
+    v ? h('div', { class: 'preview-bar', role: 'status' },
+      h('span', {}, `Aperçu : vous voyez l’appli comme ${v.name} (${ROLE_LABEL[v.role]}). Lecture seule, aucune modification possible.`),
+      h('button', { type: 'button', class: 'btn btn-sm', onclick: () => { preview.exit(); router.go('/calendrier'); } }, 'Quitter l’aperçu')) : null,
     viewBox,
     h('footer', { class: 'footer' }, h('a', { href: '#/confidentialite' }, 'Confidentialité')));
 }
@@ -89,10 +107,11 @@ async function routeView() {
   if (!viewBox) return;
   const path = router.currentPath();
   const t = router.nextToken();
-  const hit = router.resolve(path === '/' ? '/calendrier' : path);
-  if (!hit) { router.go('/calendrier'); return; }
-  if (hit.route.opts.admin && !auth.isAdmin()) { router.go('/calendrier'); return; }
-  const base = '/' + (path.split('/')[1] || 'calendrier');
+  const home = auth.isStaff() ? '/calendrier' : '/espace';
+  const hit = router.resolve(path === '/' ? home : path);
+  if (!hit) { router.go(home); return; }
+  if ((hit.route.opts.admin && !auth.isAdmin()) || (hit.route.opts.staff && !auth.isStaff())) { router.go(home); return; }
+  const base = '/' + (path.split('/')[1] || home.slice(1));
   navEl.classList.remove('open');
   navEl.querySelectorAll('a').forEach((a) => {
     if (a.dataset.path === base || (base === '/seance' && a.dataset.path === '/calendrier') || (base === '/membre' && a.dataset.path === '/membres')) a.setAttribute('aria-current', 'page');

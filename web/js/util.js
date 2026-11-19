@@ -3,7 +3,7 @@ import { setErrorFormatter } from './dom.js';
 
 export const WEEKDAYS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
 export const STATUS_LABEL = { planned: 'Prévue', done: 'Terminée', cancelled: 'Annulée' };
-export const ROLE_LABEL = { pending: 'En attente', teacher: 'Enseignant', admin: 'Administrateur' };
+export const ROLE_LABEL = { pending: 'En attente', member: 'Membre', teacher: 'Enseignant', admin: 'Administrateur' };
 
 const pad = (n) => String(n).padStart(2, '0');
 export const iso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;

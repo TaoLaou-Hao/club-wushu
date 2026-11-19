@@ -1,5 +1,6 @@
 // Authentification, profil et déconnexion automatique après inactivité.
 import { sb } from './supabaseClient.js';
+import { viewAs } from './preview.js';
 
 export const state = {
   user: null,
@@ -8,8 +9,18 @@ export const state = {
   notice: null,    // message affiché sur l'écran de connexion
 };
 
-export const isAdmin = () => state.profile && state.profile.role === 'admin';
-export const isStaff = () => state.profile && ['teacher', 'admin'].includes(state.profile.role);
+// Rôle réel du compte (jamais modifié par l'aperçu)
+export const realRole = () => (state.profile ? state.profile.role : null);
+export const isRealAdmin = () => realRole() === 'admin';
+// Rôle effectif pour l'interface : en aperçu « Voir comme », celui de la fiche choisie
+export const role = () => {
+  const r = realRole();
+  const v = viewAs();
+  return r === 'admin' && v ? v.role : r;
+};
+export const isAdmin = () => role() === 'admin';
+export const isStaff = () => ['teacher', 'admin'].includes(role());
+export const isMember = () => role() === 'member';
 
 export async function loadProfile() {
   const { data, error } = await sb.from('profiles').select('id,full_name,role').eq('id', state.user.id).maybeSingle();

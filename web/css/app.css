@@ -264,3 +264,7 @@ input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--accent); f
 @media (prefers-reduced-motion: no-preference) {
   .btn, .att-row, .chip { transition: background-color .12s, border-color .12s; }
 }
+
+/* Aperçu « Voir comme » */
+.preview-bar { display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: center; justify-content: space-between;
+  padding: .6rem 1rem; background: #fff4d6; color: #5a4300; border-bottom: 2px solid #e0b100; font-size: .95rem; }

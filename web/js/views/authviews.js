@@ -145,7 +145,7 @@ export function pendingScreen(onRefresh, onLogout) {
   return card(
     h('h2', {}, 'Compte en attente de validation'),
     h('p', {}, `Bonjour ${auth.state.profile.full_name || ''}, votre compte a bien été créé. Un administrateur doit le valider avant que vous puissiez accéder à l’application.`),
-    h('p', {}, 'Si l’on vous a remis un code enseignant, saisissez-le ci-dessous.'),
+    h('p', {}, 'Si le club vous a remis un code (code d’activation ou code enseignant), saisissez-le ci-dessous.'),
     h('form', {
       onsubmit: async (e) => {
         e.preventDefault();
@@ -159,7 +159,7 @@ export function pendingScreen(onRefresh, onLogout) {
         } catch (err) { msg.textContent = errMsg(err); msg.hidden = false; }
         finally { submit.disabled = false; }
       },
-    }, field('Code enseignant', code), msg, submit),
+    }, field('Code', code), msg, submit),
     h('div', { class: 'auth-links' },
       linkBtn('Vérifier à nouveau mon statut', onRefresh),
       linkBtn('Se déconnecter', onLogout)));
