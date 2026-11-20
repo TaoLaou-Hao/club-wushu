@@ -2,6 +2,7 @@
 import { sb, unwrap } from '../supabaseClient.js';
 import { h, clear, button, field, selectEl, formModal, toast, showError, loading, emptyState, badge } from '../dom.js';
 import { isAdmin } from '../auth.js';
+import { toFillPanel } from './tofill.js';
 import { fullName, iso, todayIso, parseDate, addDays, mondayOf, fmtDay, fmtMonth, fmtShort, hm, WEEKDAYS, STATUS_LABEL, downloadIcs } from '../util.js';
 
 // Préférences de vue conservées en mémoire seulement (pas de localStorage).
@@ -39,7 +40,9 @@ export async function renderCalendar(root) {
     load();
   }
 
+  const tofill = await toFillPanel();
   root.append(
+    ...(tofill ? [tofill] : []),
     h('div', { class: 'toolbar' },
       h('div', { class: 'toolbar-group' },
         button('‹', () => shift(-1), 'btn-icon', { 'aria-label': 'Précédent' }),

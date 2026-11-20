@@ -307,3 +307,9 @@ input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--accent); f
 .stat-bar > span { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
 .stat-rank { counter-reset: rank; }
 .att-name .badge { margin-left: .4rem; vertical-align: middle; }
+
+/* Cours à pourvoir */
+.tofill { border-left: 4px solid #e0b100; background: #fffaf0; }
+.tofill h2 { margin-top: 0; }
+.tofill-row { display: flex; flex-wrap: wrap; gap: .6rem 1rem; align-items: center; justify-content: space-between; padding: .6rem 0; border-top: 1px solid #eadfc6; }
+.tofill-actions { display: flex; flex-wrap: wrap; gap: .5rem; }

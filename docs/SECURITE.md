@@ -29,6 +29,7 @@ Ce document décrit les choix de sécurité de l'application (phase 1 : enseigna
 
 - Un rôle ne se modifie **jamais** par un simple `UPDATE` : un trigger bloque toute tentative directe. Le changement passe par la fonction `set_user_role`, réservée aux administrateurs, et chaque changement est journalisé.
 - **Le rôle `admin` ne s'obtient jamais par code d'invitation.** Un code ne donne que le rôle `teacher` ou `member`.
+- **Cours à pourvoir** : `open_sessions_to_fill()` et `claim_session()` (migration 005) ne servent qu'aux enseignants et admins. Un enseignant ne voit et ne prend que les séances des cours où il est habilité ; une séance déjà prise ne peut pas être reprise. Les membres n'y ont aucun accès.
 - **Aperçu « Voir comme » (admin)** : l'administrateur peut afficher l'interface telle qu'un enseignant ou un membre la voit. C'est un aperçu côté navigateur, **en lecture seule** : toutes les écritures et les fonctions sensibles sont bloquées dans l'appli, et le compte garde ses droits réels (aucune élévation possible). Pour un membre, les données affichées sont exactement les siennes (`member_space(p_member_id)`, réservé à l'admin et vérifié par la base).
 - **Dernier administrateur protégé** : la base refuse de retirer ou de supprimer le dernier administrateur.
 - Un administrateur ne peut pas supprimer son propre compte par cette voie.

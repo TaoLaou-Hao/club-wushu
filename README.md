@@ -49,7 +49,7 @@ Documents complémentaires :
 2. Ouvrez le fichier `supabase/schema.sql` du dépôt, copiez tout son contenu et collez-le dans l'éditeur.
 3. Cliquez sur **Run**.
 4. Vérifiez qu'il n'y a pas d'erreur rouge. Un message « Success » ou équivalent doit apparaître.
-5. Exécutez ensuite, **dans l'ordre**, chaque fichier du dossier `supabase/migrations/` (`002_…`, puis `003_…`, puis `004_…`), de la même façon. Ces migrations peuvent être rejouées sans risque.
+5. Exécutez ensuite, **dans l'ordre**, chaque fichier du dossier `supabase/migrations/` (`002_…`, `003_…`, `004_…`, puis `005_…`), de la même façon. Ces migrations peuvent être rejouées sans risque.
 
 > Le script crée les tables une seule fois : le réexécuter échouera ou modifiera la base. En cas d'erreur, ne relancez pas le script au hasard et demandez de l'aide avant de rien supprimer.
 
@@ -180,6 +180,7 @@ Les menus ci-dessous décrivent l'interface prévue. Vérifiez les intitulés ex
 | Inviter un enseignant ou un membre | Admin | Administration > Codes d'invitation : rôle Enseignant ou Membre, usage limité, durée de 1 à 30 jours. Le code est affiché **une seule fois** : copiez-le et transmettez-le de vive voix ou par message privé |
 | Donner accès à un pratiquant déjà enregistré | Admin | Fiche du membre > « Créer un code d'activation » : à la saisie du code, son compte est relié automatiquement à sa fiche |
 | Voir l'appli comme un enseignant ou un membre | Admin | Menu > « Voir comme… » (aperçu en lecture seule) |
+| Prendre un cours sans intervenant | Enseignant habilité | Encart « Cours à pourvoir » en haut du Calendrier (séances des 24 h avec des pratiquants prévus) |
 | Statistiques, relances, export CSV des présences | Enseignant | Statistiques |
 | Mon espace (planning, progression, présences, « Je viens / Je ne viens pas », mes données) | Tout compte relié à une fiche | Mon espace |
 | Révoquer un code | Admin | Administration > Codes d'invitation |
